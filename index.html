@@ -28,7 +28,7 @@
   crossorigin=""></script>
     </head>
     <body>
-        <label for="ansvarlig">Navn</label>: <input id="ansvarlig">
+        <label for="ansvarlig">Navn (til reservation)</label>: <input id="ansvarlig">
         <input type="button" id="refreshButton" value="Refresh">
         <iframe id="hidden_iframe" name="hidden_iframe"></iframe>
         <div id='mapid'></div>
@@ -43,9 +43,9 @@
             // Default options are marked with *
                 return fetch(url, {
                     method: "POST", // *GET, POST, PUT, DELETE, etc.
-                    mode: "cors", // no-cors, cors, *same-origin
+                    mode: "no-cors", // no-cors, cors, *same-origin
                     cache: "no-cache", // *default, no-cache, reload, force-cache, only-if-cached
-                    credentials: "same-origin", // include, *same-origin, omit
+                    credentials: "omit", // include, *same-origin, omit
                     headers: {
                         "Content-Type": "application/json",
                         // "Content-Type": "application/x-www-form-urlencoded",
@@ -54,7 +54,10 @@
                     referrer: "no-referrer", // no-referrer, *client
                     body: JSON.stringify(data), // body data type must match "Content-Type" header
                 })
-                .then(response => response.json()); // parses JSON response into native Javascript objects 
+                .then(
+                    //response => response.json()
+                    response => response
+                ); // parses JSON response into native Javascript objects 
             }
 
             // Called with layer as arg
@@ -63,7 +66,7 @@
                 const props = layer.feature.properties;
                 console.log('props: '+props);
                 var ny_handling = '';
-                var msg = 'Rute '+props.rute+'<br>';
+                var msg = '<h4>'+props.rute+'</h4>';
                 switch (props.tilstand) {
                     case 'fri': ny_handling = 'reserver'; break;
                     case 'reserveret': msg = msg+'Reserveret af '+props.ansvarlig+'.<br>'; ny_handling = 'afslut'; break;
@@ -79,6 +82,19 @@
                     + '<input type="submit" value="'+ny_handling+'">'
                     + '</form>';
                 return msg+formstring;
+
+                // Not active
+                const ansvarlig = ansvarligInput.value;
+                const postdata =  {handling: ny_handling, rute: props.rute, ansvarlig: ansvarlig};
+                var resp = document.createElement('div');
+                resp.appendChild(document.createTextNode(msg)); 
+                var button = document.createElement('input'); button.type='button'; button.value=ny_handling;
+                button.onclick = function() {
+                    postData(backend, postdata)
+                    .then(function (r) {console.log('Response: '+r.text());});
+                };
+                resp.appendChild(button);
+                return resp;
             }
 
             var mymap = L.map('mapid').setView([55.521, 9.6353], 15);
@@ -130,7 +146,7 @@
                 .clearLayers()
                 .addData(mergedData)
                 .setStyle(function (feature) {return {color: feature.properties.farve};})
-                .eachLayer(function (layer) { layer.bindTooltip(layer.feature.properties.rute).openTooltip(); });
+                .eachLayer(function (layer) { layer.bindTooltip(layer.feature.properties.rute, {permanent: true}).openTooltip(); });
             }
 
             function refresh() {

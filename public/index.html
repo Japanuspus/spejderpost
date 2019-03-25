@@ -7,6 +7,9 @@
             #mapid {
               height: 70vh;
             }
+            #hidden_iframe {
+              display: None;
+            };
         </style>
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.4.0/dist/leaflet.css"
   integrity="sha512-puBpdR0798OZvTTbP4A8Ix/l+A4dHDD0DGqYW6RQ+9jxkRFclaxxQb/SJAWZfWAkuyeQUytO7+7N4QKrDh+drA=="
@@ -19,6 +22,7 @@
         <h1>Spejderpost</h1>
         <label for="ansvarlig">Navn</label>: <input id="ansvarlig">
         <input type="button" id="refreshButton" value="Refresh">
+        <iframe id="hidden_iframe" name="hidden_iframe"></iframe>
         <div id='mapid'></div>
 
         <script>
@@ -26,9 +30,47 @@
             const refreshButton = document.getElementById('refreshButton');
             const backend = 'https://script.google.com/macros/s/AKfycbxsnpd2ED5Iz4VOFJmmCsu5X4n1Ukz3Bc9suHEj2NiNbWWBmUA/exec';
 
+            // from mdn
+            function postData(url = ``, data = {}) {
+            // Default options are marked with *
+                return fetch(url, {
+                    method: "POST", // *GET, POST, PUT, DELETE, etc.
+                    mode: "cors", // no-cors, cors, *same-origin
+                    cache: "no-cache", // *default, no-cache, reload, force-cache, only-if-cached
+                    credentials: "same-origin", // include, *same-origin, omit
+                    headers: {
+                        "Content-Type": "application/json",
+                        // "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    redirect: "follow", // manual, *follow, error
+                    referrer: "no-referrer", // no-referrer, *client
+                    body: JSON.stringify(data), // body data type must match "Content-Type" header
+                })
+                .then(response => response.json()); // parses JSON response into native Javascript objects 
+            }
+
             // Called with layer as arg
             function makeForm(layer) {
-                return layer.feature.properties.rute + 'A: ' + ansvarligInput.value;
+                console.log('makeForm called for '+layer);
+                const props = layer.feature.properties;
+                console.log('props: '+props);
+                var ny_handling = '';
+                var msg = 'Rute '+props.rute+'<br>';
+                switch (props.tilstand) {
+                    case 'fri': ny_handling = 'reserver'; break;
+                    case 'reserveret': msg = msg+'Reserveret af '+props.ansvarlig+'.<br>'; ny_handling = 'afslut'; break;
+                }
+                if (!Boolean(ny_handling)) {
+                    return msg+'Afsluttet af '+props.ansvarlig;
+                }
+                const formstring = 
+                    '<form method="post" action="'+backend+'" target="hidden_iframe">'
+                    + '<input type="hidden" name="ansvarlig" value="'+ansvarligInput.value+'">'
+                    + '<input type="hidden" name="rute" value="'+props.rute+'">'
+                    + '<input type="hidden" name="handling" value="'+ny_handling+'">'
+                    + '<input type="submit" value="'+ny_handling+'">'
+                    + '</form>';
+                return msg+formstring;
             }
 
             var mymap = L.map('mapid').setView([51.505, -0.09], 13);

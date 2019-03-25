@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Spejderpost</title>
+        <style type="text/css">
+            #mapid {
+              height: 70vh;
+            }
+        </style>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.4.0/dist/leaflet.css"
+  integrity="sha512-puBpdR0798OZvTTbP4A8Ix/l+A4dHDD0DGqYW6RQ+9jxkRFclaxxQb/SJAWZfWAkuyeQUytO7+7N4QKrDh+drA=="
+  crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.4.0/dist/leaflet.js"
+  integrity="sha512-QVftwZFqvtRNi0ZyCtsznlKSWOStnDORoefr1enyq5mVL4tmKB3S/EnC3rRJcxCPavG10IcrVGSmPh6Qw5lwrg=="
+  crossorigin=""></script>
+    </head>
+    <body>
+        <h1>Spejderpost</h1>
+        <label for="ansvarlig">Navn</label>: <input id="ansvarlig">
+        <input type="button" id="refreshButton" value="Refresh">
+        <div id='mapid'></div>
+
+        <script>
+            const ansvarligInput = document.getElementById('ansvarlig');
+            const refreshButton = document.getElementById('refreshButton');
+            const backend = 'https://script.google.com/macros/s/AKfycbxsnpd2ED5Iz4VOFJmmCsu5X4n1Ukz3Bc9suHEj2NiNbWWBmUA/exec';
+
+            // Called with layer as arg
+            function makeForm(layer) {
+                return layer.feature.properties.rute + 'A: ' + ansvarligInput.value;
+            }
+
+            var mymap = L.map('mapid').setView([51.505, -0.09], 13);
+            L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
+                attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                maxZoom: 18,
+                id: 'mapbox.streets',
+                accessToken: 'pk.eyJ1IjoiamFudXN3ZXNlbmJlcmciLCJhIjoiY2p0bmpzd2U2MHExMDQ1bGk5eng2dWM1bSJ9.UTP4V82VDD95-aRN5Zi2Rw'
+            }).addTo(mymap);
+
+
+            // geojson has latlong inverted
+            const data = {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": {"type": "Polygon", "coordinates": [[[ -0.08, 51.509],[ -0.047, 51.51],[ -0.06, 51.503],[ -0.08, 51.509]]]},
+                        "properties": {"rute": "Rute01"},
+                    },
+                    {
+                        "type": "Feature",
+                        "geometry": {"type": "Polygon", "coordinates": [[[ -0.18, 51.509],[ -0.147, 51.51],[ -0.16, 51.503],[ -0.18, 51.509]]]},
+                        "properties": {"rute": "Rute02"},
+                    }
+                ]};
+
+            // patch geojson based on states retrieved from backend
+            function patchData(states) {
+                var lookup = new Map(states.map(function (s) {return [s.rute, s];}));
+                var fs = data.features.map(function (feature) {
+                    var row = lookup.get(feature.properties.rute);
+                    if (!Boolean(row)) {feature.properties.farve = 'brown'; return feature;}
+                    feature.properties.tilstand = row.tilstand;
+                    feature.properties.ansvarlig = row.ansvarlig;
+                    var farve = 'brown';
+                    switch (row.tilstand) {
+                        case 'fri':
+                            farve = 'red';
+                            break;
+                        case 'reserveret':
+                            farve = 'yellow';
+                            break
+                        case 'afsluttet':
+                            farve = 'green';
+                            break;
+                    }
+                    feature.properties.farve = farve;
+                    return feature;
+                });
+                return {type: 'FeatureCollection', features: fs};
+            }
+
+            // https://leafletjs.com/reference-1.4.0.html#geojson
+            var geolayer = L
+            .geoJSON()
+            .bindPopup(makeForm)
+            .addTo(mymap);
+
+            function updateOverlay(mergedData) {
+                geolayer.clearLayers();
+                geolayer.addData(mergedData);
+                geolayer.setStyle(function (feature) {return {color: feature.properties.farve};});
+            }
+
+            function refresh() {
+                //updateOverlay(data);
+                fetch(backend)
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(myJson) {
+                    console.log('Bacend json: ' + JSON.stringify(myJson));
+                    return patchData(myJson);
+                })
+                .then(function(patchedData) {
+                    updateOverlay(patchedData);
+                    console.log('Updated overlay for patched geoJSON: ' + JSON.stringify(patchedData));
+                })
+            }
+
+            refreshButton.onclick = refresh;
+
+            setInterval(function() {
+                console.log('Tick');
+            }, 10000);
+        </script>
+    </body>
+</html>
+
+
